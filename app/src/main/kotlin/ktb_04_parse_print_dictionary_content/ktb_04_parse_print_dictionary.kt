@@ -3,7 +3,7 @@ package org.example.app.ktb_04_parse_print_dictionary_content
 import java.io.File
 
 fun main() {
-    val dictionaryFile = File("dictionary.txt")
+    val dictionaryFile = File("words.txt")
 
     dictionaryFile.createNewFile()
 
