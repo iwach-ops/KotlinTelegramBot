@@ -1,6 +1,5 @@
 package org.example.app.ktb_iii_develop_simulator_menu
 
-import org.example.app.ktb_04_parse_print_dictionary_content.Word
 import java.io.File
 
 fun main() {
