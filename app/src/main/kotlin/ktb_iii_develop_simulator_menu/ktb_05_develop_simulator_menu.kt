@@ -19,7 +19,7 @@ fun main() {
         when (choice) {
             1 -> println("Learn words")
             2 -> println("Statistics")
-            0 -> break
+            0 -> return
             else -> println("Enter the number 1, 2 or 0")
         }
     }
