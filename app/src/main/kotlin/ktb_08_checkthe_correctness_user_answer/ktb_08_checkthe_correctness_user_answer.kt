@@ -96,12 +96,11 @@ fun learnWords(dictionary: MutableList<Word>) {
         if (userAnswerInput == correctAnswerId) {
             println("Right!")
 
-
-            val idx =
+            val foundWordId =
                 dictionary.indexOfFirst { it.word == correctAnswer.word && it.translate == correctAnswer.translate }
-            if (idx != -1) {
-                val old = dictionary[idx]
-                dictionary[idx] = old.copy(correctAnswersCount = old.correctAnswersCount + 1)
+            if (foundWordId != -1) {
+                val foundWord = dictionary[foundWordId]
+                dictionary[foundWordId] = foundWord.copy(correctAnswersCount = foundWord.correctAnswersCount + 1)
             }
             saveDictionary(dictionary)
         } else {
