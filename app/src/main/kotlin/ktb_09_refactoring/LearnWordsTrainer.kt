@@ -23,7 +23,7 @@ class LearnWordsTrainer {
         }
     }
 
-    fun saveDictionary(dictionary: List<Word>) {
+    fun saveDictionary() {
         val dictionaryFile = File(DICTIONARY_FILE)
         val content = buildString {
             dictionary.forEach {
@@ -77,6 +77,8 @@ class LearnWordsTrainer {
             dictionary[foundWordId] = foundWord.copy(correctAnswersCount = foundWord.correctAnswersCount + 1)
         }
 
-        saveDictionary(dictionary)
+        saveDictionary()
     }
+
+    fun checkAnswer(userAnswerInput: Int, question: Question): Boolean = userAnswerInput == question.correctAnswerId
 }

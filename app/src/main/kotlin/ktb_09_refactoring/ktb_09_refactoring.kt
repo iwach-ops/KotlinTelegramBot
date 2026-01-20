@@ -37,13 +37,7 @@ fun learnWords(trainer: LearnWordsTrainer) {
 
         val question = trainer.getNextQuestion() ?: return
 
-        println()
-        println("${question.correctAnswer.word}:")
-        question.options.forEachIndexed { index, word ->
-            println("${index + 1} - ${word.translate}")
-        }
-        println("--------------")
-        println("0 - Menu")
+        question.asConsoleString()
 
         val userAnswerInput = readln().toIntOrNull()
         if (userAnswerInput == 0) return
@@ -52,7 +46,7 @@ fun learnWords(trainer: LearnWordsTrainer) {
             continue
         }
 
-        if (userAnswerInput == question.correctAnswerId) {
+        if (trainer.checkAnswer(userAnswerInput, question)) {
             println("Right!")
             trainer.saveCorrectAnswer(question.correctAnswer)
         } else {
