@@ -1,25 +1,31 @@
 package org.example.app.ktb_10_testing
 
 import java.io.File
+import java.io.IOException
 
 class LearnWordsTrainer {
     val dictionary = mutableListOf<Word>()
 
+
     fun loadDictionary() {
         val dictionaryFile = File(DICTIONARY_FILE)
-        dictionaryFile.createNewFile()
+        try {
+            if (!dictionaryFile.exists()) dictionaryFile.createNewFile()
 
-        dictionary.clear()
+            dictionary.clear()
 
-        dictionaryFile.readLines().forEach {
-            val line = it.split(DELIMITER)
-            val word = line.getOrNull(0)?.trim().orEmpty()
-            val translate = line.getOrNull(1)?.trim().orEmpty()
-            val correctAnswersCount = line.getOrNull(2)?.trim()?.toIntOrNull() ?: 0
+            dictionaryFile.readLines().forEach {
+                val line = it.split(DELIMITER)
+                val word = line.getOrNull(0)?.trim().orEmpty()
+                val translate = line.getOrNull(1)?.trim().orEmpty()
+                val correctAnswersCount = line.getOrNull(2)?.trim()?.toIntOrNull() ?: 0
 
-            val wordElement = Word(word, translate, correctAnswersCount)
+                val wordElement = Word(word, translate, correctAnswersCount)
 
-            dictionary.add(wordElement)
+                dictionary.add(wordElement)
+            }
+        } catch (e: IOException) {
+            println("Error reading file${e.message}")
         }
     }
 
@@ -63,7 +69,7 @@ class LearnWordsTrainer {
 
         val options = questionWords.shuffled()
 
-        val correctAnswer = options.random()
+        val correctAnswer = options.filter { it.correctAnswersCount < MIN_CORRECT_ANSWERS }.random()
 
         val correctAnswerId = options.indexOf(correctAnswer) + 1
 
