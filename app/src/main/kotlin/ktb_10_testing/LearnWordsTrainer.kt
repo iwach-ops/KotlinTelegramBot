@@ -25,7 +25,7 @@ class LearnWordsTrainer {
                 dictionary.add(wordElement)
             }
         } catch (e: IOException) {
-            println("Error reading file${e.message}")
+            println("Error reading file: ${e.message}")
         }
     }
 
