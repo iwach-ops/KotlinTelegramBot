@@ -3,9 +3,12 @@ package org.example.app.ktb_12_token_base_requests
 import java.io.File
 import java.io.IOException
 
+const val MAX_ANSWER_OPTIONS = 4
+const val DICTIONARY_FILE = "words.txt"
+const val DELIMITER = "|"
+
 class LearnWordsTrainer {
     val dictionary = mutableListOf<Word>()
-
 
     fun loadDictionary() {
         val dictionaryFile = File(DICTIONARY_FILE)
