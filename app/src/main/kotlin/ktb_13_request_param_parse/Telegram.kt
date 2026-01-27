@@ -7,7 +7,6 @@ import java.net.http.HttpResponse
 
 const val TELEGRAM_BASE_URL = "https://api.telegram.org/bot"
 const val START_UPDATE_ID_PATTERN = "update_id"
-const val MOVE_FROM_START_UPDATE_ID_PATTERN_TO_START_ID_NUMBER = 11
 const val END_UPDATE_ID_PATTERN = ",\n\"message\""
 
 fun main(args: Array<String>) {
@@ -24,12 +23,11 @@ fun main(args: Array<String>) {
 
         if (startUpdateId == -1 || endUpdateId == -1) continue
 
-        startUpdateId += MOVE_FROM_START_UPDATE_ID_PATTERN_TO_START_ID_NUMBER
+        startUpdateId += START_UPDATE_ID_PATTERN.length + 2
 
         val updateIdString = updates.substring(startUpdateId, endUpdateId)
 
         updateId = updateIdString.toInt() + 1
-
     }
 }
 
