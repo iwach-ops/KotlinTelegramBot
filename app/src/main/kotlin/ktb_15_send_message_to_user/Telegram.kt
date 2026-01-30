@@ -19,7 +19,7 @@ fun main(args: Array<String>) {
     while (true) {
         Thread.sleep(2000)
 
-        val updates: String = service.getUpdates(client, botToken, updateId)
+        val updates: String = service.getUpdates(updateId)
         println(updates)
 
         val updateIdRegex = Regex(UPDATE_ID_REGEX_PATTERN)
@@ -33,7 +33,7 @@ fun main(args: Array<String>) {
 
         if (chatId != null && text != null) {
             println("$userName: $text: Chat_ID:$chatId")
-            service.sendMessage(client, botToken, chatId.toLong(), text)
+            service.sendMessage(chatId.toLong(), text)
         }
 
         val lastUpdateId = updateIdRegex

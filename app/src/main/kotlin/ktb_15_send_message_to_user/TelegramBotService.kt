@@ -13,8 +13,8 @@ class TelegramBotService(
 ) {
     private val baseUrl = "$TELEGRAM_BASE_URL$botToken"
 
-    fun getUpdates(client: HttpClient, botToken: String, updateId: Int): String {
-        val urlGetUpdates = "$TELEGRAM_BASE_URL$botToken/getUpdates?offset=$updateId"
+    fun getUpdates(updateId: Int): String {
+        val urlGetUpdates = "$baseUrl/getUpdates?offset=$updateId"
 
         val requestGetUpdates = HttpRequest.newBuilder().uri(URI.create(urlGetUpdates)).build()
 
@@ -23,8 +23,8 @@ class TelegramBotService(
         return responseGetUpdates.body()
     }
 
-    fun sendMessage(client: HttpClient, botToken: String, chatId: Long, text: String): String {
-        val urlSendMessage = "$TELEGRAM_BASE_URL$botToken/sendMessage"
+    fun sendMessage(chatId: Long, text: String): String {
+        val urlSendMessage = "$baseUrl/sendMessage"
 
         val formatText = text.trim().take(4096)
         require(formatText.isNotEmpty()) { "text must not be empty" }
