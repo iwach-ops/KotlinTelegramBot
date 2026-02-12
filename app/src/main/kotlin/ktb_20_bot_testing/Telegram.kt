@@ -10,6 +10,31 @@ const val STATISTIC_CALLBACK_DATA = "statistic_clicked"
 const val CALLBACK_DATA_ANSWER_PREFIX = "answer_"
 
 @Serializable
+data class SendMessageRequest(
+    @SerialName("chat_id")
+    val chatId: Long,
+    @SerialName("text")
+    val text: String,
+    @SerialName("reply_markup")
+    val replyMarkup: ReplyMarkup,
+)
+
+@Serializable
+data class ReplyMarkup(
+    @SerialName("inline_keyboard")
+    val inlineKeyboard: List<List<InlineKeyboard>>,
+)
+
+@Serializable
+data class InlineKeyboard(
+    @SerialName("callback_data")
+    val callbackData: String,
+    @SerialName("text")
+    val text: String,
+
+    )
+
+@Serializable
 data class Update(
     @SerialName("update_id")
     val updateId: Long,
@@ -48,6 +73,7 @@ data class Chat(
 )
 
 fun checkNextQuestionAndSend(
+    json: Json,
     trainer: LearnWordsTrainer,
     telegramBotService: TelegramBotService,
     chatId: Long
@@ -59,7 +85,7 @@ fun checkNextQuestionAndSend(
         telegramBotService.sendMessage(chatId, "All the words in the dictionary have been learned.")
         return null
     } else {
-        telegramBotService.sendQuestion(chatId, question)
+        telegramBotService.sendQuestion(json, chatId, question)
         return question
     }
 }
@@ -100,7 +126,7 @@ fun main(args: Array<String>) {
         }
 
         if (message?.trim()?.lowercase() == "/start" && chatId != null) {
-            service.sendMenu(chatId)
+            service.sendMenu(json, chatId)
         }
 
         if (data?.lowercase() == STATISTIC_CALLBACK_DATA && chatId != null) {
@@ -109,7 +135,7 @@ fun main(args: Array<String>) {
         }
 
         if (data == LEARN_WORDS_CLICKED_CALLBACK_DATA && chatId != null) {
-            currentQuestion = checkNextQuestionAndSend(trainer, service, chatId)
+            currentQuestion = checkNextQuestionAndSend(json, trainer, service, chatId)
             println("current Question: $currentQuestion")
         }
 
@@ -131,7 +157,7 @@ fun main(args: Array<String>) {
                     val correctTranslate = quest.correctAnswer.translate
                     service.sendMessage(chatId, "Wrong: $correctWord - $correctTranslate")
                 }
-                currentQuestion = checkNextQuestionAndSend(trainer, service, chatId)
+                currentQuestion = checkNextQuestionAndSend(json, trainer, service, chatId)
             }
         }
     }

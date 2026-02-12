@@ -1,5 +1,6 @@
 package org.example.app.ktb_20_bot_testing
 
+import kotlinx.serialization.json.Json
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
@@ -42,34 +43,28 @@ class TelegramBotService(
         return responseSendMessage.body()
     }
 
-    fun sendMenu(chatId: Long): String {
+    fun sendMenu(json: Json, chatId: Long): String {
         val urlSendMessage = "$baseUrl/sendMessage"
 
-        val sendMenuBody = """
-            {
-              "chat_id": $chatId,
-              "text": "Main Menu",
-              "reply_markup": {
-                "inline_keyboard": [
-                  [
-                    {
-                      "text": "Learn Words",
-                      "callback_data": "$LEARN_WORDS_CLICKED_CALLBACK_DATA"
-                    },
-                    {
-                      "text": "Statistic",
-                      "callback_data": "$STATISTIC_CALLBACK_DATA"
-                    }
-                  ]
-                ]
-              }
-            }          
-            """.trimIndent()
+        val requestBody = SendMessageRequest(
+            chatId = chatId,
+            text = "Main Menu",
+            replyMarkup = ReplyMarkup(
+                listOf(
+                    listOf(
+                        InlineKeyboard("$LEARN_WORDS_CLICKED_CALLBACK_DATA", "Learn Words"),
+                        InlineKeyboard("$STATISTIC_CALLBACK_DATA", "Statistic"),
+                    )
+                )
+            )
+        )
+
+        val requestBodyString = json.encodeToString(requestBody)
 
         val requestSendMenu = HttpRequest.newBuilder()
             .uri(URI.create(urlSendMessage))
             .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(sendMenuBody))
+            .POST(HttpRequest.BodyPublishers.ofString(requestBodyString))
             .build()
 
         val responseSendMenu = client.send(requestSendMenu, HttpResponse.BodyHandlers.ofString())
@@ -77,31 +72,34 @@ class TelegramBotService(
         return responseSendMenu.body()
     }
 
-    fun sendQuestion(chatId: Long, question: Question): String {
+    fun sendQuestion(json: Json, chatId: Long, question: Question): String {
         val urlSendMessage = "$baseUrl/sendMessage"
 
         val keyboardButtons = question.options.mapIndexed { index, word ->
             """{"text":"${word.translate}","callback_data":"$CALLBACK_DATA_ANSWER_PREFIX${index + 1}"}"""
         }.joinToString(",")
 
-        val bodyQuestion = """ 
-        {
-            "chat_id": $chatId,
-            "text": "${question.correctAnswer.word}",
-            "reply_markup": {
-            "inline_keyboard": [
-            [ $keyboardButtons]
-            ]
-        }
-        }
-""".trimIndent()
+        val requestBody = SendMessageRequest(
+            chatId = chatId,
+            text = question.correctAnswer.word,
+            replyMarkup = ReplyMarkup(
+                listOf(question.options.mapIndexed { index, word ->
+                    InlineKeyboard(
+                        text = word.translate, callbackData = "${CALLBACK_DATA_ANSWER_PREFIX}${index + 1}"
 
-        println("BODY QUESTION:\n$bodyQuestion\n")
+                    )
+                })
+            )
+        )
+
+        val requestBodyString = json.encodeToString(requestBody)
+
+        println("BODY QUESTION:\n$requestBodyString\n")
 
         val requestSendQuestion = HttpRequest.newBuilder()
             .uri(URI.create(urlSendMessage))
             .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(bodyQuestion))
+            .POST(HttpRequest.BodyPublishers.ofString(requestBodyString))
             .build()
 
         val responseQuestion = client.send(requestSendQuestion, HttpResponse.BodyHandlers.ofString())
