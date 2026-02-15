@@ -75,10 +75,6 @@ class TelegramBotService(
     fun sendQuestion(json: Json, chatId: Long, question: Question): String {
         val urlSendMessage = "$baseUrl/sendMessage"
 
-        val keyboardButtons = question.options.mapIndexed { index, word ->
-            """{"text":"${word.translate}","callback_data":"$CALLBACK_DATA_ANSWER_PREFIX${index + 1}"}"""
-        }.joinToString(",")
-
         val requestBody = SendMessageRequest(
             chatId = chatId,
             text = question.correctAnswer.word,
@@ -86,7 +82,6 @@ class TelegramBotService(
                 listOf(question.options.mapIndexed { index, word ->
                     InlineKeyboard(
                         text = word.translate, callbackData = "${CALLBACK_DATA_ANSWER_PREFIX}${index + 1}"
-
                     )
                 })
             )
