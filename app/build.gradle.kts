@@ -7,6 +7,7 @@ plugins {
     id("org.jetbrains.kotlin.jvm")
     kotlin("plugin.serialization") version "1.9.24"
     // Apply the Application plugin to add support for building an executable JVM application.
+    id("com.github.johnrengelman.shadow") version "8.1.1"
     application
 }
 
