@@ -1,5 +1,7 @@
 package org.example.app.ktb_iii_develop_simulator_menu
 
+import org.example.app.ktb_06_develop_simulator_menu.Word
+import org.example.app.ktb_06_develop_simulator_menu.loadDictionary
 import java.io.File
 
 fun main() {
