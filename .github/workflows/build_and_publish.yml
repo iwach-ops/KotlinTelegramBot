@@ -27,7 +27,7 @@ jobs:
         run: ./gradlew shadowJar --no-daemon
 
       - name: Rename file
-        run: mv build/libs/app-all.jar bot.jar
+        run: mv app/build/libs/app-all.jar bot.jar
 
       - name: Deploy jar to VPS
         uses: appleboy/scp-action@v0.1.7
