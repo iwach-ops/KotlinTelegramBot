@@ -1,0 +1,4 @@
+good|хороший|0
+bad line without delimiter
+another|строка|notANumber
+ok|ок|3
