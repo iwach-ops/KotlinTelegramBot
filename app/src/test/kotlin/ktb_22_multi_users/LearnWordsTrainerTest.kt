@@ -6,6 +6,8 @@ import org.example.app.ktb_22_multi_users.Statistic
 import org.example.app.ktb_22_multi_users.Word
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class LearnWordsTrainerTest {
@@ -19,7 +21,6 @@ class LearnWordsTrainerTest {
             trainer.getStatistics()
         )
     }
-
 
     @Test
     fun `test statistics with corrupted file`() {
@@ -36,27 +37,29 @@ class LearnWordsTrainerTest {
     fun `test getNextQuestion() with 5 unlearned words`() {
         val trainer = LearnWordsTrainer("src/test/5_unlearned.txt").apply { loadDictionary() }
 
-        val q = trainer.getNextQuestion()
+        val question = assertNotNull(
+            trainer.getNextQuestion(),
+            "Question must not be null when there are unlearned words"
+        )
 
-        assertTrue(q != null)
-        assertEquals(4, q!!.options.size)
-        assertTrue(q.correctAnswerId in 1..4)
+        assertEquals(4, question.options.size)
+        assertTrue(question.correctAnswerId in 1..4)
     }
 
     @Test
-    fun `test getNextQuestion() with 1 unleard word`() {
+    fun `test getNextQuestion() with 1 unlearned word`() {
 
         val trainer = LearnWordsTrainer("src/test/1_unlearned.txt").apply { loadDictionary() }
 
-        val q = trainer.getNextQuestion()
+        val question = assertNotNull(
+            trainer.getNextQuestion(),
+            "Question must not be null when there is 1 unlearned word"
+        )
 
-        assertTrue(q != null)
-        assertEquals(4, q!!.options.size)
+        assertEquals(4, question.options.size)
 
-        // Единственное невыученное слово - cat|кошка|0
-        assertEquals("cat", q.correctAnswer.word)
-        assertEquals("кошка", q.correctAnswer.translate)
-    }
+        assertEquals("cat", question.correctAnswer.word)
+        assertEquals("кошка", question.correctAnswer.translate)    }
 
     @Test
     fun `test getNextQuestion() with all words learned`() {
@@ -105,7 +108,7 @@ class LearnWordsTrainerTest {
 
         val result = trainer.checkAnswer(3, q)
 
-        assertTrue(!result)
+        assertFalse(result)
     }
 
     @Test
