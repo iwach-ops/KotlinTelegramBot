@@ -8,6 +8,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class LearnWordsTrainerTest {
@@ -59,7 +60,8 @@ class LearnWordsTrainerTest {
         assertEquals(4, question.options.size)
 
         assertEquals("cat", question.correctAnswer.word)
-        assertEquals("кошка", question.correctAnswer.translate)    }
+        assertEquals("кошка", question.correctAnswer.translate)
+    }
 
     @Test
     fun `test getNextQuestion() with all words learned`() {
@@ -68,7 +70,7 @@ class LearnWordsTrainerTest {
 
         val q = trainer.getNextQuestion()
 
-        assertEquals(null, q)
+        assertNull(q)
     }
 
     @Test
