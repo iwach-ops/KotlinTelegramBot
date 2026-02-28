@@ -6,52 +6,33 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 const val TELEGRAM_BASE_URL = "https://api.telegram.org/bot"
-const val TELEGRAM_FILE_BASE_URL = "https://api.telegram.org/file/bot"
 const val LEARN_WORDS_CLICKED_CALLBACK_DATA = "learnWords_clicked"
 const val STATISTIC_CALLBACK_DATA = "statistic_clicked"
 const val RESET_CALLBACK_DATA = "reset_clicked"
 const val CALLBACK_DATA_ANSWER_PREFIX = "answer_"
-const val BACK_TO_MENU_CALLBACK_DATA = "back_to_menu"
 
 @Serializable
-data class GetFileRequest(
-    @SerialName("file_id")
-    val fileId: String
-)
-
-@Serializable
-data class GetFileResponse(
+data class SendPhotoResponse(
     val ok: Boolean,
-    val result: TelegramFile? = null,
-    val description: String? = null,
-    @SerialName("error_code")
-    val errorCode: Int? = null
+    val result: SendPhotoResult? = null
 )
 
 @Serializable
-data class TelegramFile(
+data class SendPhotoResult(
+    @SerialName("photo")
+    val photo: List<PhotoSize> = emptyList()
+)
+
+@Serializable
+data class PhotoSize(
     @SerialName("file_id")
     val fileId: String,
     @SerialName("file_unique_id")
     val fileUniqueId: String,
     @SerialName("file_size")
-    val fileSize: Long,
-    @SerialName("file_path")
-    val filePath: String,
-)
-
-@Serializable
-data class Document(
-    @SerialName("file_name")
-    val fileName: String,
-    @SerialName("mime_type")
-    val mimeType: String,
-    @SerialName("file_id")
-    val fileId: String,
-    @SerialName("file_unique_id")
-    val fileUniqueId: String,
-    @SerialName("file_size")
-    val fileSize: Long,
+    val fileSize: Long? = null,
+    val width: Int,
+    val height: Int
 )
 
 @Serializable
@@ -91,12 +72,8 @@ data class Update(
 
 @Serializable
 data class Response(
-    val ok: Boolean,
     @SerialName("result")
-    val result: List<Update> = emptyList(),
-    @SerialName("error_code")
-    val errorCode: Int? = null,
-    val description: String? = null
+    val result: List<Update>,
 )
 
 @Serializable
@@ -105,7 +82,6 @@ data class Message(
     val text: String? = null,
     @SerialName("chat")
     val chat: Chat,
-    val document: Document? = null,
 )
 
 @Serializable
@@ -122,61 +98,116 @@ data class Chat(
     val id: Long,
 )
 
+fun extractBestPhotoFileId(json: Json, raw: String): String? {
+    val resp = json.decodeFromString<SendPhotoResponse>(raw)
+    val photos = resp.result?.photo ?: return null
+    return photos.maxByOrNull { it.fileSize ?: 0 }?.fileId
+        ?: photos.lastOrNull()?.fileId
+}
+
+fun maybeSendWordPhoto(
+    json: Json,
+    service: TelegramBotService,
+    chatId: Long,
+    wordKey: String,
+    imageMap: Map<String, String>,
+    cache: PhotoIdStore,
+    hasSpoiler: Boolean = false
+) {
+    val key = wordKey.trim().lowercase()
+    val path = imageMap[key] ?: return
+
+    val localFile = File(path)
+    if (!localFile.exists()) {
+        println("Image not found for '$key': $path")
+        return
+    }
+
+    val cachedId = cache.get(key)
+    if (cachedId != null) {
+        println("PHOTO: using cached file_id for $key")
+        service.sendPhotoByFileId(chatId, cachedId, hasSpoiler)
+        return
+    }
+
+    println("PHOTO: uploading local file for $key -> ${localFile.name}")
+    val raw = service.sendPhoto(localFile, chatId, hasSpoiler)
+    val newId = extractBestPhotoFileId(json, raw)
+    if (newId != null) {
+        cache.put(key, newId)
+        println("PHOTO: saved file_id for $key")
+    } else {
+        println("PHOTO: upload ok but file_id not extracted for $key")
+    }
+}
+
+
 fun checkNextQuestionAndSend(
     json: Json,
     trainer: LearnWordsTrainer,
     telegramBotService: TelegramBotService,
-    chatId: Long
+    chatId: Long,
+    imageMap: Map<String, String>,
+    photoCache: PhotoIdStore,
 ): Question? {
 
     val question = trainer.getNextQuestion()
     if (question == null) {
         telegramBotService.sendMessage(chatId, "All the words in the dictionary have been learned.")
         return null
-    } else {
-        telegramBotService.sendQuestion(json, chatId, question)
-        return question
     }
+
+    maybeSendWordPhoto(
+        json = json,
+        service = telegramBotService,
+        chatId = chatId,
+        wordKey = question.correctAnswer.word,
+        imageMap = imageMap,
+        cache = photoCache,
+        hasSpoiler = false
+    )
+
+    telegramBotService.sendQuestion(json, chatId, question)
+    return question
 }
 
 fun handleUpdate(
     update: Update, json: Json, service: TelegramBotService,
     currentQuestions: MutableMap<Long, Question?>,
-    trainers: HashMap<Long, LearnWordsTrainer>
+    trainers: HashMap<Long, LearnWordsTrainer>,
+    imageMap: Map<String, String>,
+    photoCache: PhotoIdStore,
 ) {
-
     val message = update.message?.text
     val chatId = update.message?.chat?.id ?: update.callbackQuery?.message?.chat?.id ?: return
     val data = update.callbackQuery?.data
 
     val trainer = trainers.getOrPut(chatId) { LearnWordsTrainer("$chatId.txt").apply { loadDictionary() } }
 
-    val document = update.message?.document
+    if (message?.trim()?.lowercase() == "/photo_test") {
+        val cache = PhotoIdStore()
 
-    if (document != null) {
-        service.sendMessage(chatId, "File received, ${document.fileName}")
+        val key = "cat"
+        val localFile = File("app/build/libs/images/cat.png")
 
-        val getFileResponse = service.getFile(json, document.fileId)
-        println("GetFile Response: $getFileResponse")
+        val cachedId = cache.get(key)
+        if (cachedId != null) {
+            println("USING CACHED file_id for $key: $cachedId")
+            service.sendPhotoByFileId(chatId, cachedId, hasSpoiler = false)
+            service.sendMessage(chatId, "Used cached fileId")
+        } else {
+            println("NO CACHE for $key -> uploading file")
+            val raw = service.sendPhoto(localFile, chatId, hasSpoiler = false)
+            val newId = extractBestPhotoFileId(json, raw)
+            println("NEW file_id: $newId")
 
-        val filePath = getFileResponse.result?.filePath
-        println("path: $filePath")
-
-        if (filePath == null) {
-            service.sendMessage(chatId, "Cannot download, file_path is null")
-            return
+            if (newId != null) {
+                cache.put(key, newId)
+                service.sendMessage(chatId, "Uploaded + cached")
+            } else {
+                service.sendMessage(chatId, "Upload ok, but could not extract fileId")
+            }
         }
-
-        val targetFile = File("uploads/${document.fileName}")
-        service.downloadFile(filePath, targetFile)
-
-        trainer.loadDictionary()
-        val addedWordsNumber = trainer.importWordsFromFile(targetFile)
-
-        service.sendMessage(chatId, "Loaded $addedWordsNumber words - ok : ${document.fileName}")
-
-        service.sendMenu(json, chatId)
-
         return
     }
 
@@ -197,7 +228,7 @@ fun handleUpdate(
     }
 
     if (data == LEARN_WORDS_CLICKED_CALLBACK_DATA) {
-        currentQuestions[chatId] = checkNextQuestionAndSend(json, trainer, service, chatId)
+        currentQuestions[chatId] = checkNextQuestionAndSend(json, trainer, service, chatId, imageMap, photoCache)
         return
     }
 
@@ -218,18 +249,13 @@ fun handleUpdate(
                 val correctTranslate = quest.correctAnswer.translate
                 service.sendMessage(chatId, "Wrong: $correctWord - $correctTranslate")
             }
-            currentQuestions[chatId] = checkNextQuestionAndSend(json, trainer, service, chatId)
+            currentQuestions[chatId] = checkNextQuestionAndSend(json, trainer, service, chatId, imageMap, photoCache)
         }
     }
 
     if (data == RESET_CALLBACK_DATA) {
         trainer.resetProgress()
         service.sendMessage(chatId, "Progress is reset")
-    }
-
-    if (data == BACK_TO_MENU_CALLBACK_DATA) {
-        service.sendMenu(json, chatId)
-        return
     }
 }
 
@@ -249,13 +275,16 @@ fun main(args: Array<String>) {
         Thread.sleep(2000)
 
         val responseString: String = service.getUpdates(lastUpdateId)
-        //println(responseString)
-        println("UPDATES JSON:\n$responseString")
+        println(responseString)
 
         val response: Response = json.decodeFromString(responseString)
         if (response.result.isEmpty()) continue
         val sortedUpdates = response.result.sortedBy { it.updateId }
-        sortedUpdates.forEach { handleUpdate(it, json, service, currentQuestions, trainers) }
+
+        val imageMap = loadImageMap()
+        val photoCache = PhotoIdStore()
+
+        sortedUpdates.forEach { handleUpdate(it, json, service, currentQuestions, trainers, imageMap, photoCache) }
         lastUpdateId = sortedUpdates.last().updateId + 1
     }
 }
