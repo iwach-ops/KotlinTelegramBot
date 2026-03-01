@@ -1,5 +1,6 @@
-package org.example.app.ktb_22_multi_users
+package org.example.app.ktb_26_loading_dictionary
 
+import kotlinx.serialization.json.Json
 import java.io.File
 
 private const val IMAGE_MAP_FILE = "app/build/libs/images/images_map.txt"
@@ -10,8 +11,47 @@ data class ImageInfo(
     val fileId: String? = null,
 )
 
+fun maybeSendWordPhoto(
+    json: Json,
+    service: TelegramBotService,
+    chatId: Long,
+    wordKey: String,
+    imageMap: MutableMap<String, ImageInfo>,
+    hasSpoiler: Boolean = false
+) {
+    val key = wordKey.trim().lowercase()
+    val info = imageMap[key] ?: return
+
+    val localFile = File(info.path)
+    if (!localFile.exists()) {
+        println("Image not found for '$key': ${localFile.absolutePath}")
+        return
+    }
+
+    val cachedId = info.fileId
+    if (cachedId != null) {
+        println("PHOTO: using cached file_id for $key")
+        service.sendPhotoByFileId(chatId, cachedId, hasSpoiler)
+        return
+    }
+
+    println("PHOTO: uploading local file for $key -> ${localFile.name}")
+    val raw = service.sendPhoto(localFile, chatId, hasSpoiler)
+    println("sendPhoto raw: $raw")
+
+    val newId = extractBestPhotoFileId(json, raw)
+    if (newId != null) {
+        imageMap[key] = info.copy(fileId = newId)
+        saveImageMap(imageMap)
+        println("PHOTO: saved file_id for $key into images_map.txt")
+    } else {
+        println("PHOTO: upload ok but file_id not extracted for $key")
+    }
+}
+
 fun loadImageMap(fileName: String = IMAGE_MAP_FILE): MutableMap<String, ImageInfo> {
     val file = File(fileName)
+    println("IMAGE_MAP_FILE: ${file.absolutePath}")
     if (!file.exists()) return mutableMapOf()
 
     val map = mutableMapOf<String, ImageInfo>()
@@ -33,6 +73,7 @@ fun loadImageMap(fileName: String = IMAGE_MAP_FILE): MutableMap<String, ImageInf
             )
         }
 
+    println("IMAGE MAP LOADED: ${map.size} entries")
     return map
 }
 

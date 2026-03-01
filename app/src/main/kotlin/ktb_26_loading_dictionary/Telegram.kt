@@ -105,50 +105,12 @@ fun extractBestPhotoFileId(json: Json, raw: String): String? {
         ?: photos.lastOrNull()?.fileId
 }
 
-fun maybeSendWordPhoto(
-    json: Json,
-    service: TelegramBotService,
-    chatId: Long,
-    wordKey: String,
-    imageMap: Map<String, String>,
-    cache: PhotoIdStore,
-    hasSpoiler: Boolean = false
-) {
-    val key = wordKey.trim().lowercase()
-    val path = imageMap[key] ?: return
-
-    val localFile = File(path)
-    if (!localFile.exists()) {
-        println("Image not found for '$key': $path")
-        return
-    }
-
-    val cachedId = cache.get(key)
-    if (cachedId != null) {
-        println("PHOTO: using cached file_id for $key")
-        service.sendPhotoByFileId(chatId, cachedId, hasSpoiler)
-        return
-    }
-
-    println("PHOTO: uploading local file for $key -> ${localFile.name}")
-    val raw = service.sendPhoto(localFile, chatId, hasSpoiler)
-    val newId = extractBestPhotoFileId(json, raw)
-    if (newId != null) {
-        cache.put(key, newId)
-        println("PHOTO: saved file_id for $key")
-    } else {
-        println("PHOTO: upload ok but file_id not extracted for $key")
-    }
-}
-
-
 fun checkNextQuestionAndSend(
     json: Json,
     trainer: LearnWordsTrainer,
     telegramBotService: TelegramBotService,
     chatId: Long,
-    imageMap: Map<String, String>,
-    photoCache: PhotoIdStore,
+    imageMap: MutableMap<String, ImageInfo>,
 ): Question? {
 
     val question = trainer.getNextQuestion()
@@ -163,7 +125,6 @@ fun checkNextQuestionAndSend(
         chatId = chatId,
         wordKey = question.correctAnswer.word,
         imageMap = imageMap,
-        cache = photoCache,
         hasSpoiler = false
     )
 
@@ -175,8 +136,7 @@ fun handleUpdate(
     update: Update, json: Json, service: TelegramBotService,
     currentQuestions: MutableMap<Long, Question?>,
     trainers: HashMap<Long, LearnWordsTrainer>,
-    imageMap: Map<String, String>,
-    photoCache: PhotoIdStore,
+    imageMap: MutableMap<String, ImageInfo>,
 ) {
     val message = update.message?.text
     val chatId = update.message?.chat?.id ?: update.callbackQuery?.message?.chat?.id ?: return
@@ -185,28 +145,37 @@ fun handleUpdate(
     val trainer = trainers.getOrPut(chatId) { LearnWordsTrainer("$chatId.txt").apply { loadDictionary() } }
 
     if (message?.trim()?.lowercase() == "/photo_test") {
-        val cache = PhotoIdStore()
-
         val key = "cat"
-        val localFile = File("app/build/libs/images/cat.png")
+        val info = imageMap[key]
 
-        val cachedId = cache.get(key)
-        if (cachedId != null) {
-            println("USING CACHED file_id for $key: $cachedId")
-            service.sendPhotoByFileId(chatId, cachedId, hasSpoiler = false)
+        if (info == null) {
+            service.sendMessage(chatId, "No image mapping for '$key' in images_map.txt")
+            return
+        }
+
+        val localFile = File(info.path)
+        if (!localFile.exists()) {
+            service.sendMessage(chatId, "Image file not found: ${localFile.path}")
+            return
+        }
+
+        if (info.fileId != null) {
+            println("USING CACHED file_id for $key: ${info.fileId}")
+            service.sendPhotoByFileId(chatId, info.fileId, hasSpoiler = false)
             service.sendMessage(chatId, "Used cached fileId")
-        } else {
-            println("NO CACHE for $key -> uploading file")
-            val raw = service.sendPhoto(localFile, chatId, hasSpoiler = false)
-            val newId = extractBestPhotoFileId(json, raw)
-            println("NEW file_id: $newId")
+            return
+        }
 
-            if (newId != null) {
-                cache.put(key, newId)
-                service.sendMessage(chatId, "Uploaded + cached")
-            } else {
-                service.sendMessage(chatId, "Upload ok, but could not extract fileId")
-            }
+        println("NO fileId for $key -> uploading file: ${localFile.path}")
+        val raw = service.sendPhoto(localFile, chatId, hasSpoiler = false)
+        val newId = extractBestPhotoFileId(json, raw)
+
+        if (newId != null) {
+            imageMap[key] = info.copy(fileId = newId)
+            saveImageMap(imageMap)
+            service.sendMessage(chatId, "Uploaded + saved fileId to images_map.txt")
+        } else {
+            service.sendMessage(chatId, "Upload ok, but could not extract fileId")
         }
         return
     }
@@ -228,7 +197,7 @@ fun handleUpdate(
     }
 
     if (data == LEARN_WORDS_CLICKED_CALLBACK_DATA) {
-        currentQuestions[chatId] = checkNextQuestionAndSend(json, trainer, service, chatId, imageMap, photoCache)
+        currentQuestions[chatId] = checkNextQuestionAndSend(json, trainer, service, chatId, imageMap)
         return
     }
 
@@ -249,7 +218,7 @@ fun handleUpdate(
                 val correctTranslate = quest.correctAnswer.translate
                 service.sendMessage(chatId, "Wrong: $correctWord - $correctTranslate")
             }
-            currentQuestions[chatId] = checkNextQuestionAndSend(json, trainer, service, chatId, imageMap, photoCache)
+            currentQuestions[chatId] = checkNextQuestionAndSend(json, trainer, service, chatId, imageMap)
         }
     }
 
@@ -262,7 +231,7 @@ fun handleUpdate(
 fun main(args: Array<String>) {
     val botToken = args[0]
     var lastUpdateId = 0L
-
+    val imageMap = loadImageMap()
     val service = TelegramBotService(botToken)
 
     val json = Json { ignoreUnknownKeys = true }
@@ -281,10 +250,7 @@ fun main(args: Array<String>) {
         if (response.result.isEmpty()) continue
         val sortedUpdates = response.result.sortedBy { it.updateId }
 
-        val imageMap = loadImageMap()
-        val photoCache = PhotoIdStore()
-
-        sortedUpdates.forEach { handleUpdate(it, json, service, currentQuestions, trainers, imageMap, photoCache) }
+        sortedUpdates.forEach { handleUpdate(it, json, service, currentQuestions, trainers, imageMap) }
         lastUpdateId = sortedUpdates.last().updateId + 1
     }
 }
