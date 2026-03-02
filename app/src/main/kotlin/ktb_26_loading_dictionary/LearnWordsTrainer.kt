@@ -14,33 +14,6 @@ class LearnWordsTrainer(
 ) {
     val dictionary = mutableListOf<Word>()
 
-    fun importWordsFromFile(file: File): Int {
-        var added = 0
-
-        file.readLines()
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .forEach { line ->
-                val parts = line.split(DELIMITER)
-                if (parts.size < 2) return@forEach
-
-                val word = parts[0].trim()
-                val translate = parts[1].trim()
-                val correct = parts.getOrNull(2)?.trim()?.toIntOrNull() ?: 0
-
-                if (word.isBlank() || translate.isBlank()) return@forEach
-
-                val exists = dictionary.any { it.word == word && it.translate == translate }
-                if (!exists) {
-                    dictionary.add(Word(word, translate, correct))
-                    added++
-                }
-            }
-
-        saveDictionary()
-        return added
-    }
-
     fun loadDictionary(
     ) {
         val dictionaryFile = File(fileName)
@@ -90,7 +63,6 @@ class LearnWordsTrainer(
         dictionary.forEach { it.correctAnswersCount = 0 }
         saveDictionary()
     }
-
 
     fun getStatistics(): Statistic {
         val total = dictionary.size
