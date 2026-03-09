@@ -22,57 +22,55 @@ class DynamicMessage(
 
         val msgId = service.sendMessageAndGetId(json, chatId, text) ?: return
 
-        val st = states.getOrPut(chatId) { UserState() }
-        st.messageId = msgId
-        st.lastPercent = stats.percent
-        st.history.clear()
-        st.history.addLast(text)
+        val state = states.getOrPut(chatId) { UserState() }
+        state.messageId = msgId
+        state.lastPercent = stats.percent
+        state.history.clear()
+        state.history.addLast(text)
     }
 
     fun updateStatistics(chatId: Long, trainer: LearnWordsTrainer) {
-        val st = states.getOrPut(chatId) { UserState() }
+        val state = states.getOrPut(chatId) { UserState() }
 
-        if (st.messageId == 0L) {
+        if (state.messageId == 0L) {
             showStatistics(chatId, trainer)
             return
         }
 
         val stats = trainer.getStatistics()
-        val from = st.lastPercent
+        val from = state.lastPercent
         val to = stats.percent
 
-        animate(chatId, st, stats, from, to)
+        animate(chatId, state, stats, from, to)
 
         val finalText = buildText(to, stats)
-        if (safeEdit(chatId, st, finalText)) {
-            st.lastPercent = to
-            pushHistory(st, finalText)
+        if (safeEdit(chatId, state, finalText)) {
+            state.lastPercent = to
+            pushHistory(state, finalText)
         }
     }
 
     fun undo(chatId: Long) {
-        val st = states[chatId]
-        if (st == null || st.messageId == 0L || st.history.size <= 1) {
+        val state = states[chatId]
+        if (state == null || state.messageId == 0L || state.history.size <= 1) {
             service.sendMessage(chatId, "Nothing to undo.")
             return
         }
 
-        st.history.removeLast()
-        val prev = st.history.last()
-        safeEdit(chatId, st, prev)
+        state.history.removeLast()
+        val prev = state.history.last()
+        safeEdit(chatId, state, prev)
     }
 
-    // -------- helpers --------
-
-    private fun pushHistory(st: UserState, text: String) {
-        if (st.history.lastOrNull() != text) {
-            st.history.addLast(text)
-            while (st.history.size > 20) st.history.removeFirst()
+    private fun pushHistory(state: UserState, text: String) {
+        if (state.history.lastOrNull() != text) {
+            state.history.addLast(text)
+            while (state.history.size > 20) state.history.removeFirst()
         }
     }
 
-    private fun safeEdit(chatId: Long, st: UserState, text: String): Boolean {
-        val raw = service.editMessage(chatId, st.messageId, text)
+    private fun safeEdit(chatId: Long, state: UserState, text: String): Boolean {
+        val raw = service.editMessage(chatId, state.messageId, text)
 
         val resp = runCatching { json.decodeFromString(EditMessageApiResponse.serializer(), raw) }.getOrNull()
             ?: return raw.contains("MESSAGE_NOT_MODIFIED", ignoreCase = true)
@@ -84,15 +82,15 @@ class DynamicMessage(
 
         if (desc.contains("MESSAGE_EDIT_TIME_EXPIRED", ignoreCase = true)) {
             val newId = service.sendMessageAndGetId(json, chatId, text) ?: return false
-            st.messageId = newId
-            st.history.clear()
-            st.history.addLast(text)
+            state.messageId = newId
+            state.history.clear()
+            state.history.addLast(text)
             return true
         }
         return false
     }
 
-    private fun animate(chatId: Long, st: UserState, stats: Statistic, from: Int, to: Int) {
+    private fun animate(chatId: Long, state: UserState, stats: Statistic, from: Int, to: Int) {
         if (from == to) return
 
         val diff = abs(to - from)
@@ -104,15 +102,15 @@ class DynamicMessage(
 
         val range = if (to > from) (from..to step step) else (from downTo to step step)
 
-        for (p in range) {
-            safeEdit(chatId, st, buildText(p, stats))
+        for (progress in range) {
+            safeEdit(chatId, state, buildText(progress, stats))
             Thread.sleep(80)
         }
     }
 
     private fun bar(percent: Int): String {
-        val p = percent.coerceIn(0, 100)
-        val filled = p / 10
+        val progress = percent.coerceIn(0, 100)
+        val filled = progress / 10
         return "█".repeat(filled) + "▒".repeat(10 - filled)
     }
 

@@ -197,7 +197,6 @@ fun handleUpdate(
     }
 
     if (data?.lowercase() == STATISTIC_CALLBACK_DATA) {
-        //service.sendMessage(chatId, trainer.getStatistics().printFormat())
         dynamicMessage.showStatistics(chatId, trainer)
         return
     }
@@ -240,7 +239,6 @@ fun handleUpdate(
         return
     }
 
-    // 1) Jump to stats
     if (data == GO_TO_STATS_CALLBACK_DATA) {
         val statsId = dynamicMessage.statsMessageId(chatId)
 
@@ -313,7 +311,7 @@ data class TelegramMessageResult(
 @Serializable
 data class EditMessageApiResponse(
     val ok: Boolean,
-    val result: JsonElement? = null, // Telegram kann Message oder true liefern
+    val result: JsonElement? = null,
     val description: String? = null,
     @SerialName("error_code") val errorCode: Int? = null
 )
