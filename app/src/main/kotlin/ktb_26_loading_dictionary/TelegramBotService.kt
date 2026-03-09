@@ -19,33 +19,38 @@ class TelegramBotService(
 ) {
     private val baseUrl = "$TELEGRAM_BASE_URL$botToken"
 
+    private fun sendAndCheck(request: HttpRequest, action: String): String {
+        val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+
+        val code = response.statusCode()
+        if (code !in 200..299) {
+            println("HTTP ERROR [$action]: status=$code body=${response.body()}")
+        }
+        return response.body()
+    }
+
+    private fun postForm(action: String, params: List<Pair<String, String>>): String {
+        val url = "$baseUrl/$action"
+
+        val body = params.joinToString("&") { (k, v) ->
+            "$k=${URLEncoder.encode(v, StandardCharsets.UTF_8)}"
+        }
+
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .POST(HttpRequest.BodyPublishers.ofString(body))
+            .build()
+
+        return sendAndCheck(request, action)
+    }
+
     fun getUpdates(updateId: Long): String {
         val urlGetUpdates = "$baseUrl/getUpdates?offset=$updateId"
 
         val requestGetUpdates = HttpRequest.newBuilder().uri(URI.create(urlGetUpdates)).build()
 
-        val responseGetUpdates = client.send(requestGetUpdates, HttpResponse.BodyHandlers.ofString())
-
-        return responseGetUpdates.body()
-    }
-
-    fun sendMessage(chatId: Long, text: String): String {
-        val urlSendMessage = "$baseUrl/sendMessage"
-
-        val formatText = text.trim().take(4096)
-        require(formatText.isNotEmpty()) { "text must not be empty" }
-
-        val body = "chat_id=$chatId&text=${URLEncoder.encode(formatText, StandardCharsets.UTF_8)}"
-
-        val requestSendMessage = HttpRequest.newBuilder()
-            .uri(URI.create(urlSendMessage))
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .POST(HttpRequest.BodyPublishers.ofString(body))
-            .build()
-
-        val responseSendMessage = client.send(requestSendMessage, HttpResponse.BodyHandlers.ofString())
-
-        return responseSendMessage.body()
+        return sendAndCheck(requestGetUpdates, "getUpdates")
     }
 
     fun sendPhotoByFileId(chatId: Long, fileId: String, hasSpoiler: Boolean = false): String {
@@ -63,8 +68,7 @@ class TelegramBotService(
             .postMultipartFormData(boundary, data)
             .build()
 
-        val response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString())
-        return response.body()
+        return sendAndCheck(request, "sendPhotoByFileId")
     }
 
     fun sendPhoto(file: File, chatId: Long, hasSpoiler: Boolean = false): String {
@@ -84,8 +88,7 @@ class TelegramBotService(
             .postMultipartFormData(boundary, data)
             .build()
 
-        val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-        return response.body()
+        return sendAndCheck(request, "sendPhoto")
     }
 
     private fun HttpRequest.Builder.postMultipartFormData(
@@ -154,9 +157,7 @@ class TelegramBotService(
             .POST(HttpRequest.BodyPublishers.ofString(requestBodyString))
             .build()
 
-        val responseSendMenu = client.send(requestSendMenu, HttpResponse.BodyHandlers.ofString())
-
-        return responseSendMenu.body()
+        return sendAndCheck(requestSendMenu, "sendMenu")
     }
 
     fun sendQuestion(json: Json, chatId: Long, question: Question): String {
@@ -166,11 +167,18 @@ class TelegramBotService(
             chatId = chatId,
             text = question.correctAnswer.word,
             replyMarkup = ReplyMarkup(
-                listOf(question.options.mapIndexed { index, word ->
-                    InlineKeyboard(
-                        text = word.translate, callbackData = "${CALLBACK_DATA_ANSWER_PREFIX}${index + 1}"
+                listOf(
+                    question.options.mapIndexed { index, word ->
+                        InlineKeyboard(
+                            text = word.translate, callbackData = "${CALLBACK_DATA_ANSWER_PREFIX}${index + 1}"
+                        )
+                    },
+                    listOf(
+                        InlineKeyboard(callbackData = GO_TO_STATS_CALLBACK_DATA, text = "📊 Statistic"),
+                        InlineKeyboard(callbackData = MENU_CALLBACK_DATA, text = "🏠 Menu"),
+                        InlineKeyboard(callbackData = UNDO_CALLBACK_DATA, text = "↩️ Undo"),
                     )
-                })
+                )
             )
         )
 
@@ -184,9 +192,42 @@ class TelegramBotService(
             .POST(HttpRequest.BodyPublishers.ofString(requestBodyString))
             .build()
 
-        val responseQuestion = client.send(requestSendQuestion, HttpResponse.BodyHandlers.ofString())
-        val resp = responseQuestion.body()
-        println("sendQuestion response: $resp\n")
-        return resp
+        return sendAndCheck(requestSendQuestion, "sendQuestion")
+    }
+
+    fun sendMessageAndGetId(json: Json, chatId: Long, text: String): Long? {
+        val raw = sendMessage(chatId, text)
+        return extractMessageId(json, raw)
+    }
+
+    fun editMessage(chatId: Long, messageId: Long, message: String): String {
+        val formatText = message.trim().take(4096)
+        require(formatText.isNotEmpty()) { "message must not be empty" }
+
+        return postForm(
+            "editMessageText",
+            listOf(
+                "chat_id" to chatId.toString(),
+                "message_id" to messageId.toString(),
+                "text" to formatText
+            )
+        )
+    }
+
+    fun sendMessage(chatId: Long, text: String, replyToMessageId: Long? = null): String {
+        val formatText = text.trim().take(4096)
+        require(formatText.isNotEmpty()) { "text must not be empty" }
+
+        val params = mutableListOf(
+            "chat_id" to chatId.toString(),
+            "text" to formatText
+        )
+
+        if (replyToMessageId != null) {
+            params += "reply_to_message_id" to replyToMessageId.toString()
+            params += "allow_sending_without_reply" to "true"
+        }
+
+        return postForm("sendMessage", params)
     }
 }

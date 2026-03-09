@@ -3,6 +3,7 @@ package org.example.app.ktb_26_loading_dictionary
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import java.io.File
 
 const val TELEGRAM_BASE_URL = "https://api.telegram.org/bot"
@@ -10,6 +11,9 @@ const val LEARN_WORDS_CLICKED_CALLBACK_DATA = "learnWords_clicked"
 const val STATISTIC_CALLBACK_DATA = "statistic_clicked"
 const val RESET_CALLBACK_DATA = "reset_clicked"
 const val CALLBACK_DATA_ANSWER_PREFIX = "answer_"
+const val GO_TO_STATS_CALLBACK_DATA = "go_to_stats"
+const val MENU_CALLBACK_DATA = "menu_clicked"
+const val UNDO_CALLBACK_DATA = "undo_clicked"
 
 @Serializable
 data class SendPhotoResponse(
@@ -137,6 +141,7 @@ fun handleUpdate(
     currentQuestions: MutableMap<Long, Question?>,
     trainers: HashMap<Long, LearnWordsTrainer>,
     imageMap: MutableMap<String, ImageInfo>,
+    dynamicMessage: DynamicMessage,
 ) {
     val message = update.message?.text
     val chatId = update.message?.chat?.id ?: update.callbackQuery?.message?.chat?.id ?: return
@@ -192,7 +197,7 @@ fun handleUpdate(
     }
 
     if (data?.lowercase() == STATISTIC_CALLBACK_DATA) {
-        service.sendMessage(chatId, trainer.getStatistics().printFormat())
+        dynamicMessage.showStatistics(chatId, trainer)
         return
     }
 
@@ -213,6 +218,8 @@ fun handleUpdate(
             if (isCorrect) {
                 service.sendMessage(chatId, "Right!")
                 trainer.saveCorrectAnswer(quest.correctAnswer)
+
+                dynamicMessage.updateStatistics(chatId, trainer)
             } else {
                 val correctWord = quest.correctAnswer.word
                 val correctTranslate = quest.correctAnswer.translate
@@ -226,6 +233,37 @@ fun handleUpdate(
         trainer.resetProgress()
         service.sendMessage(chatId, "Progress is reset")
     }
+
+    if (message?.trim()?.lowercase() == "/undo") {
+        dynamicMessage.undo(chatId)
+        return
+    }
+
+    if (data == GO_TO_STATS_CALLBACK_DATA) {
+        val statsId = dynamicMessage.statsMessageId(chatId)
+
+        if (statsId != null) {
+            service.sendMessage(
+                chatId,
+                "⬆️ Click on Reply, in order to reach the Statistic.",
+                replyToMessageId = statsId
+            )
+        } else {
+            service.sendMessage(chatId, "No Statistic. Please  click on Statistic in Menu ")
+            service.sendMenu(json, chatId)
+        }
+        return
+    }
+
+    if (data == MENU_CALLBACK_DATA) {
+        service.sendMenu(json, chatId)
+        return
+    }
+
+    if (data == UNDO_CALLBACK_DATA) {
+        dynamicMessage.undo(chatId)
+        return
+    }
 }
 
 fun main(args: Array<String>) {
@@ -235,6 +273,8 @@ fun main(args: Array<String>) {
     val service = TelegramBotService(botToken)
 
     val json = Json { ignoreUnknownKeys = true }
+
+    val dynamicMessage = DynamicMessage(json, service)
 
     val trainers = HashMap<Long, LearnWordsTrainer>()
 
@@ -250,7 +290,31 @@ fun main(args: Array<String>) {
         if (response.result.isEmpty()) continue
         val sortedUpdates = response.result.sortedBy { it.updateId }
 
-        sortedUpdates.forEach { handleUpdate(it, json, service, currentQuestions, trainers, imageMap) }
+        sortedUpdates.forEach { handleUpdate(it, json, service, currentQuestions, trainers, imageMap, dynamicMessage) }
         lastUpdateId = sortedUpdates.last().updateId + 1
     }
 }
+
+@Serializable
+data class SendMessageApiResponse(
+    val ok: Boolean,
+    val result: TelegramMessageResult? = null,
+    val description: String? = null,
+    @SerialName("error_code") val errorCode: Int? = null
+)
+
+@Serializable
+data class TelegramMessageResult(
+    @SerialName("message_id") val messageId: Long
+)
+
+@Serializable
+data class EditMessageApiResponse(
+    val ok: Boolean,
+    val result: JsonElement? = null,
+    val description: String? = null,
+    @SerialName("error_code") val errorCode: Int? = null
+)
+
+fun extractMessageId(json: Json, raw: String): Long? =
+    json.decodeFromString<SendMessageApiResponse>(raw).result?.messageId
