@@ -1,8 +1,7 @@
 package org.example.app.ktb_26_loading_dictionary
 
 fun main() {
-    val trainer = LearnWordsTrainer("words.txt")
-    trainer.loadDictionary()
+    val trainer = LearnWordsTrainer(FileUserDictionary("words.txt"))
 
     while (true) {
         println(

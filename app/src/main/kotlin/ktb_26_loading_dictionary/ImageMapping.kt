@@ -80,6 +80,8 @@ fun loadImageMap(fileName: String = IMAGE_MAP_FILE): MutableMap<String, ImageInf
 fun saveImageMap(map: Map<String, ImageInfo>, fileName: String = IMAGE_MAP_FILE) {
     val file = File(fileName)
 
+    file.parentFile?.mkdirs()
+
     val content = buildString {
         map.forEach { (word, info) ->
             append(word)
