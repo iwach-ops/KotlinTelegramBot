@@ -12,29 +12,28 @@ class DictionaryDataSource(
         }
 
         DriverManager.getConnection(dbUrl).use { connection ->
-            val insertStatement = connection.prepareStatement(
+            connection.prepareStatement(
                 """
                 INSERT OR IGNORE INTO words(text, translate)
                 VALUES(?, ?)
                 """.trimIndent()
-            )
+            ).use { insertStatement ->
 
-            wordsFile.readLines()
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-                .forEach { line ->
-                    val parts = line.split(DELIMITER)
-                    val word = parts.getOrNull(0)?.trim().orEmpty()
-                    val translate = parts.getOrNull(1)?.trim().orEmpty()
+                wordsFile.readLines()
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .forEach { line ->
+                        val parts = line.split(DELIMITER)
+                        val word = parts.getOrNull(0)?.trim().orEmpty()
+                        val translate = parts.getOrNull(1)?.trim().orEmpty()
 
-                    if (word.isBlank() || translate.isBlank()) return@forEach
+                        if (word.isBlank() || translate.isBlank()) return@forEach
 
-                    insertStatement.setString(1, word)
-                    insertStatement.setString(2, translate)
-                    insertStatement.executeUpdate()
-                }
-
-            insertStatement.close()
+                        insertStatement.setString(1, word)
+                        insertStatement.setString(2, translate)
+                        insertStatement.executeUpdate()
+                    }
+            }
         }
     }
 }
