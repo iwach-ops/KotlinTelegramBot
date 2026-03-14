@@ -112,6 +112,19 @@ data class Chat(
     val id: Long,
 )
 
+@Serializable
+data class TelegramMessageResult(
+    @SerialName("message_id") val messageId: Long
+)
+
+@Serializable
+data class EditMessageApiResponse(
+    val ok: Boolean,
+    val result: JsonElement? = null,
+    val description: String? = null,
+    @SerialName("error_code") val errorCode: Int? = null
+)
+
 fun extractBestPhotoFileId(json: Json, raw: String): String? {
     val resp = json.decodeFromString<SendPhotoResponse>(raw)
     val photos = resp.result?.photo ?: return null
@@ -156,12 +169,20 @@ fun handleUpdate(
     val message = update.message?.text
     val chatId = update.message?.chat?.id ?: update.callbackQuery?.message?.chat?.id ?: return
     val data = update.callbackQuery?.data
-    val username = update.message?.from?.username ?: update.callbackQuery?.from?.username
+
+    val rawUsername = update.message?.from?.username ?: update.callbackQuery?.from?.username
+    SecurityUtils.logSuspiciousInput("telegram_username", rawUsername)
+
+    val safeUsername = runCatching {
+        SecurityUtils.validateUsername(rawUsername)
+    }.getOrNull()
 
     val trainer = trainers.getOrPut(chatId) {
         LearnWordsTrainer(
-            DatabaseUserDictionary(chatId = chatId,
-                username = username)
+            DatabaseUserDictionary(
+                chatId = chatId,
+                username = safeUsername
+            )
         )
     }
 
@@ -320,19 +341,6 @@ fun main(args: Array<String>) {
 data class SendMessageApiResponse(
     val ok: Boolean,
     val result: TelegramMessageResult? = null,
-    val description: String? = null,
-    @SerialName("error_code") val errorCode: Int? = null
-)
-
-@Serializable
-data class TelegramMessageResult(
-    @SerialName("message_id") val messageId: Long
-)
-
-@Serializable
-data class EditMessageApiResponse(
-    val ok: Boolean,
-    val result: JsonElement? = null,
     val description: String? = null,
     @SerialName("error_code") val errorCode: Int? = null
 )

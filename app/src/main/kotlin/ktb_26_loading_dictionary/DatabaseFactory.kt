@@ -3,10 +3,10 @@ package org.example.app.ktb_26_loading_dictionary
 import java.sql.DriverManager
 
 object DatabaseFactory {
-    private const val DB_URL = "jdbc:sqlite:data.db"
+    private const val DEFAULT_DB_URL = "jdbc:sqlite:data.db"
 
-    fun initDatabase() {
-        DriverManager.getConnection(DB_URL).use { connection ->
+    fun initDatabase(dbUrl: String = DEFAULT_DB_URL) {
+        DriverManager.getConnection(dbUrl).use { connection ->
             connection.createStatement().use { statement ->
                 statement.executeUpdate(
                     """
