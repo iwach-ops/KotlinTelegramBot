@@ -16,6 +16,12 @@ const val MENU_CALLBACK_DATA = "menu_clicked"
 const val UNDO_CALLBACK_DATA = "undo_clicked"
 
 @Serializable
+data class User(
+    @SerialName("username")
+    val username: String? = null,
+)
+
+@Serializable
 data class SendPhotoResponse(
     val ok: Boolean,
     val result: SendPhotoResult? = null
@@ -86,6 +92,8 @@ data class Message(
     val text: String? = null,
     @SerialName("chat")
     val chat: Chat,
+    @SerialName("from")
+    val from: User? = null,
 )
 
 @Serializable
@@ -94,6 +102,8 @@ data class CallbackQuery(
     val data: String? = null,
     @SerialName("message")
     val message: Message? = null,
+    @SerialName("from")
+    val from: User? = null,
 )
 
 @Serializable
@@ -146,8 +156,14 @@ fun handleUpdate(
     val message = update.message?.text
     val chatId = update.message?.chat?.id ?: update.callbackQuery?.message?.chat?.id ?: return
     val data = update.callbackQuery?.data
+    val username = update.message?.from?.username ?: update.callbackQuery?.from?.username
 
-    val trainer = trainers.getOrPut(chatId) { LearnWordsTrainer("$chatId.txt").apply { loadDictionary() } }
+    val trainer = trainers.getOrPut(chatId) {
+        LearnWordsTrainer(
+            DatabaseUserDictionary(chatId = chatId,
+                username = username)
+        )
+    }
 
     if (message?.trim()?.lowercase() == "/photo_test") {
         val key = "cat"
@@ -245,7 +261,7 @@ fun handleUpdate(
         if (statsId != null) {
             service.sendMessage(
                 chatId,
-                "⬆️ Click on Reply, in order to reach the Statistic.",
+                "Click on Reply, in order to reach the Statistic.",
                 replyToMessageId = statsId
             )
         } else {
@@ -267,6 +283,11 @@ fun handleUpdate(
 }
 
 fun main(args: Array<String>) {
+    DatabaseFactory.initDatabase()
+
+    val dictionaryDataSource = DictionaryDataSource()
+    dictionaryDataSource.updateDictionary(File(DICTIONARY_FILE))
+
     val botToken = args[0]
     var lastUpdateId = 0L
     val imageMap = loadImageMap()
