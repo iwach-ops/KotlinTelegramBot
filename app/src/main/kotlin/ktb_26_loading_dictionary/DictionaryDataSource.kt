@@ -24,10 +24,22 @@ class DictionaryDataSource(
                     .filter { it.isNotEmpty() }
                     .forEach { line ->
                         val parts = line.split(DELIMITER)
-                        val word = parts.getOrNull(0)?.trim().orEmpty()
-                        val translate = parts.getOrNull(1)?.trim().orEmpty()
 
-                        if (word.isBlank() || translate.isBlank()) return@forEach
+                        val rawWord = parts.getOrNull(0)?.trim().orEmpty()
+                        val rawTranslate = parts.getOrNull(1)?.trim().orEmpty()
+
+                        SecurityUtils.logSuspiciousInput("dictionary_word", rawWord)
+                        SecurityUtils.logSuspiciousInput("dictionary_translate", rawTranslate)
+
+                        val word = runCatching {
+                            SecurityUtils.validateDictionaryValue(rawWord, "word")
+                        }.getOrNull()
+
+                        val translate = runCatching {
+                            SecurityUtils.validateDictionaryValue(rawTranslate, "translate")
+                        }.getOrNull()
+
+                        if (word == null || translate == null) return@forEach
 
                         insertStatement.setString(1, word)
                         insertStatement.setString(2, translate)
